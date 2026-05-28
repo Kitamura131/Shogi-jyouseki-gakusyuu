@@ -71,9 +71,6 @@ function getGameStateAtStep(problem: JosekiProblem, step: number): BoardState {
 }
 
 export default function Home() {
-  const searchParams = useSearchParams();
-  const isAdmin = !!(searchParams && searchParams.get('admin') === 'true');
-
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-[#F6F3EB] flex items-center justify-center">
@@ -82,12 +79,14 @@ export default function Home() {
         </div>
       </div>
     }>
-      <HomeContent isAdmin={isAdmin} />
+      <HomeContent />
     </Suspense>
   );
 }
 
-function HomeContent({ isAdmin }: { isAdmin: boolean }) {
+function HomeContent() {
+  const searchParams = useSearchParams();
+  const isAdmin = !!(searchParams && searchParams.get('admin') === 'true');
 
   // --- A. モードとデータの状態管理 ---
   const [mode, setMode] = useState<'home' | 'learn' | 'record'>('home');
