@@ -1,7 +1,7 @@
 // src/app/page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Dashboard } from '../components/Home/Dashboard';
 import { JosekiExplorer } from '../components/Home/JosekiExplorer';
@@ -71,9 +71,23 @@ function getGameStateAtStep(problem: JosekiProblem, step: number): BoardState {
 }
 
 export default function Home() {
-  // --- 管理者モード判定 ---
   const searchParams = useSearchParams();
   const isAdmin = !!(searchParams && searchParams.get('admin') === 'true');
+
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#F6F3EB] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-pulse text-amber-700 font-serif text-2xl">読み込み中...</div>
+        </div>
+      </div>
+    }>
+      <HomeContent isAdmin={isAdmin} />
+    </Suspense>
+  );
+}
+
+function HomeContent({ isAdmin }: { isAdmin: boolean }) {
 
   // --- A. モードとデータの状態管理 ---
   const [mode, setMode] = useState<'home' | 'learn' | 'record'>('home');
