@@ -1,6 +1,6 @@
 // src/hooks/useJosekiStore.ts
 
-'use client'; // ブラウザのLocalStorageを扱うため、クライアント側で動作するようにします
+'use client';
 
 import { useState, useEffect } from 'react';
 import { JosekiProblem, JosekiGroup, SubGroup, SRSStatus } from '../types';
@@ -13,7 +13,7 @@ export function useJosekiStore() {
   const [problems, setProblems] = useState<JosekiProblem[]>([]);
   const [josekiGroups, setJosekiGroups] = useState<JosekiGroup[]>([]);
   const [subGroups, setSubGroups] = useState<SubGroup[]>([]);
-  const [loading, setLoading] = useState<boolean>(true); // ロード中かどうか
+  const [loading, setLoading] = useState<boolean>(true);
 
   // --- 2. 起動時のLocalStorage初期ロード ＆ 自動セットアップ ---
   useEffect(() => {
@@ -66,7 +66,6 @@ export function useJosekiStore() {
           needsSave = true;
         }
 
-        // 初回起動またはデータが破損していた場合、デフォルトデータをセットアップ
         if (needsSave) {
           try {
             localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(loadedGroups));
@@ -74,7 +73,6 @@ export function useJosekiStore() {
             localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(loadedProblems));
           } catch (storageErr) {
             console.error('Failed to save data to localStorage:', storageErr);
-            // ストレージ満杯でもアプリは動作する（メモリ上だけで動作）
           }
         }
 
@@ -83,7 +81,6 @@ export function useJosekiStore() {
         setProblems(loadedProblems);
       } catch (err) {
         console.error('Unexpected error during storage initialization:', err);
-        // フォールバック：デフォルトデータで起動
         setJosekiGroups(initialTacticsGroups);
         setSubGroups(initialTacticsSubGroups);
         setProblems(initialJosekiProblems);
@@ -93,7 +90,7 @@ export function useJosekiStore() {
     }
   }, []);
 
-  // --- 3. 定跡問題（孫・JosekiProblem）の追加 ＆ 編集（上書きマージ保存） ---
+  // --- 3. 定跡問題（孫・JosekiProblem）の追加 ＆ 編集 ---
   const saveProblem = (
     editingId: string | null,
     groupId: string,
@@ -104,7 +101,6 @@ export function useJosekiStore() {
     startStep: number,
     moves: any[]
   ) => {
-    // 新規定跡の基礎データ
     const baseProblem: Omit<JosekiProblem, 'srs'> = {
       id: editingId || `custom-${Date.now()}`,
       groupId,
@@ -119,18 +115,16 @@ export function useJosekiStore() {
     let updatedProblems: JosekiProblem[] = [];
 
     if (editingId) {
-      // 【編集上書き保存（マージ）】: 既存の「学習履歴(srs)」を破壊せずにそのまま引き継ぐ
       updatedProblems = problems.map((p) => {
         if (p.id === editingId) {
           return {
             ...baseProblem,
-            srs: p.srs // 【重要】既存の学習レベルや復習スケジュールを死守
+            srs: p.srs
           };
         }
         return p;
       });
     } else {
-      // 新規追加保存：未着手のSRS初期値（stage: 0）をセット
       const newProblem: JosekiProblem = {
         ...baseProblem,
         srs: { stage: 0, interval: 0, nextReviewDate: null, lastReviewedAt: null }
@@ -149,14 +143,32 @@ export function useJosekiStore() {
     localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(updated));
   };
 
+  // 定跡問題（孫）のコピー
+  const copyProblem = (problemId: string) => {
+    const originalProblem = problems.find(p => p.id === problemId);
+    if (!originalProblem) {
+      console.warn(`Problem with ID ${problemId} not found`);
+      return;
+    }
+
+    const newProblem: JosekiProblem = {
+      ...originalProblem,
+      id: `custom-${Date.now()}`,
+      title: `${originalProblem.title} (コピー)`,
+      srs: { stage: 0, interval: 0, nextReviewDate: null, lastReviewedAt: null }
+    };
+
+    const updated = [...problems, newProblem];
+    setProblems(updated);
+    localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(updated));
+  };
+
   // --- 4. 親グループ（戦法・JosekiGroup）の追加 ＆ 編集 ---
   const saveGroup = (id: string | null, name: string) => {
     let updated: JosekiGroup[] = [];
     if (id) {
-      // 編集上書き
       updated = josekiGroups.map(g => g.id === id ? { ...g, name } : g);
     } else {
-      // 新規作成
       const newGroup: JosekiGroup = {
         id: `group-${Date.now()}`,
         name,
@@ -168,7 +180,7 @@ export function useJosekiStore() {
     localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(updated));
   };
 
-  // 親グループの削除（所属する子戦型・孫定跡の【一斉カスケード連動削除】による安全設計）
+  // 親グループの削除（カスケード連動削除）
   const deleteGroup = (groupId: string) => {
     const updatedGroups = josekiGroups.filter(g => g.id !== groupId);
     const updatedSubGroups = subGroups.filter(sg => sg.groupId !== groupId);
@@ -187,10 +199,8 @@ export function useJosekiStore() {
   const saveSubGroup = (id: string | null, groupId: string, name: string) => {
     let updated: SubGroup[] = [];
     if (id) {
-      // 編集上書き
       updated = subGroups.map(sg => sg.id === id ? { ...sg, name } : sg);
     } else {
-      // 新規作成
       const newSub: SubGroup = {
         id: `sub-${Date.now()}`,
         groupId,
@@ -203,7 +213,7 @@ export function useJosekiStore() {
     localStorage.setItem(STORAGE_KEYS.SUB_GROUPS, JSON.stringify(updated));
   };
 
-  // 子グループの削除（所属する孫定跡の【一斉カスケード連動削除】による安全設計）
+  // 子グループの削除（カスケード連動削除）
   const deleteSubGroup = (subGroupId: string) => {
     const updatedSubGroups = subGroups.filter(sg => sg.id !== subGroupId);
     const updatedProblems = problems.filter(p => p.subGroupId !== subGroupId);
@@ -215,13 +225,106 @@ export function useJosekiStore() {
     localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(updatedProblems));
   };
 
+  // --- 【新設】親グループ（戦法・JosekiGroup）の順序変更ロジック ---
+  const moveGroupOrder = (groupId: string, direction: 'up' | 'down') => {
+    const index = josekiGroups.findIndex(g => g.id === groupId);
+    if (index === -1) return;
+
+    let swapWithIndex = -1;
+    if (direction === 'up' && index > 0) {
+      swapWithIndex = index - 1;
+    } else if (direction === 'down' && index < josekiGroups.length - 1) {
+      swapWithIndex = index + 1;
+    }
+
+    if (swapWithIndex !== -1) {
+      const updated = [...josekiGroups];
+      const temp = updated[index];
+      updated[index] = updated[swapWithIndex];
+      updated[swapWithIndex] = temp;
+
+      setJosekiGroups(updated);
+      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(updated));
+    }
+  };
+
+  // --- 子グループ（戦型・SubGroup）の順序変更ロジック（同一戦法内のみ） ---
+  const moveSubGroupOrder = (subGroupId: string, direction: 'up' | 'down') => {
+    const index = subGroups.findIndex(sg => sg.id === subGroupId);
+    if (index === -1) return;
+
+    const targetSubGroup = subGroups[index];
+    const parentGroupId = targetSubGroup.groupId;
+
+    const siblingIndices = subGroups
+      .map((sg, i) => sg.groupId === parentGroupId ? i : -1)
+      .filter(i => i !== -1);
+
+    const siblingPos = siblingIndices.indexOf(index);
+    if (siblingPos === -1) return;
+
+    let swapWithSiblingPos = -1;
+    if (direction === 'up' && siblingPos > 0) {
+      swapWithSiblingPos = siblingPos - 1;
+    } else if (direction === 'down' && siblingPos < siblingIndices.length - 1) {
+      swapWithSiblingPos = siblingPos + 1;
+    }
+
+    if (swapWithSiblingPos !== -1) {
+      const swapIndex = siblingIndices[swapWithSiblingPos];
+      const updated = [...subGroups];
+      
+      const temp = updated[index];
+      updated[index] = updated[swapIndex];
+      updated[swapIndex] = temp;
+
+      setSubGroups(updated);
+      localStorage.setItem(STORAGE_KEYS.SUB_GROUPS, JSON.stringify(updated));
+    }
+  };
+
+  // --- 孫グループ（定跡問題・JosekiProblem）の順序変更ロジック（同一戦型内のみ） ---
+  const moveProblemOrder = (problemId: string, direction: 'up' | 'down') => {
+    const index = problems.findIndex(p => p.id === problemId);
+    if (index === -1) return;
+
+    const targetProblem = problems[index];
+    const parentSubGroupId = targetProblem.subGroupId;
+
+    const siblingIndices = problems
+      .map((p, i) => p.subGroupId === parentSubGroupId ? i : -1)
+      .filter(i => i !== -1);
+
+    const siblingPos = siblingIndices.indexOf(index);
+    if (siblingPos === -1) return;
+
+    let swapWithSiblingPos = -1;
+    if (direction === 'up' && siblingPos > 0) {
+      swapWithSiblingPos = siblingPos - 1;
+    } else if (direction === 'down' && siblingPos < siblingIndices.length - 1) {
+      swapWithSiblingPos = siblingPos + 1;
+    }
+
+    if (swapWithSiblingPos !== -1) {
+      const swapIndex = siblingIndices[swapWithSiblingPos];
+      const updated = [...problems];
+      
+      const temp = updated[index];
+      updated[index] = updated[swapIndex];
+      updated[swapIndex] = temp;
+
+      setProblems(updated);
+      localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(updated));
+    }
+  };
+
   // --- 6. 記憶システム (SRS) スケジュール手動アップデート（タイムトラベル用） ---
   const timeTravelReviewDates = () => {
     const updatedProblems = problems.map((prob) => {
-      if (!prob.srs.nextReviewDate) return prob; // 未着手はスキップ
+      if (!prob.srs.nextReviewDate) return prob;
 
       const originalDate = new Date(prob.srs.nextReviewDate);
-      originalDate.setDate(originalDate.getDate() - 1); // 24時間過去（1日前）に巻き戻す
+      originalDate.setDate(originalDate.getDate() - 1);
 
       return {
         ...prob,
@@ -242,7 +345,6 @@ export function useJosekiStore() {
 
     const updatedProblems = problems.map((prob) => {
       if (prob.id === problemId) {
-        // srsEngineのロジックを安全に実行
         const nextSrs = selection 
           ? calculateAnkiReview(prob.srs, selection) 
           : calculateNextReview(prob.srs, isPerfect);
@@ -256,22 +358,25 @@ export function useJosekiStore() {
     setProblems(updatedProblems);
     localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(updatedProblems));
 
-    return updatedSrsStatus; // 画面側（page.tsx）に更新結果を返して、お祝いメッセージに利用できるようにします
+    return updatedSrsStatus;
   };
 
-  // 画面側（page.tsx）から呼び出せる変数や関数を公開します
   return {
     problems,
-    setProblems, // ★【エラー解消】外部のpage.tsxからproblemsを自由に更新・セットできるようセッターをエクスポート追加しました
+    setProblems,
     josekiGroups,
     subGroups,
     loading,
     saveProblem,
     deleteProblem,
+    copyProblem,
     saveGroup,
     deleteGroup,
     saveSubGroup,
     deleteSubGroup,
+    moveGroupOrder,    // 親階層並び替えを公開
+    moveSubGroupOrder, // 子階層並び替えを公開
+    moveProblemOrder,  // 孫階層並び替えを公開
     timeTravelReviewDates,
     updateProblemSrs
   };

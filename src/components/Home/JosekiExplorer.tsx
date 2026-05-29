@@ -2,11 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
-// 型定義の実体である '../../types'（index.ts）から直接一括インポートします
-import { JosekiProblem, JosekiGroup, SubGroup, BoardState } from '../../types';
-import Board from '../Board';
-import { getGameStateAtStep } from '../../utils/boardEngine';
-
+import { JosekiProblem, JosekiGroup, SubGroup } from '../../types';
 
 type JosekiExplorerProps = {
   problems: JosekiProblem[];
@@ -15,10 +11,14 @@ type JosekiExplorerProps = {
   onSelect: (problem: JosekiProblem) => void;
   onEdit: (problem: JosekiProblem) => void;
   onDelete: (id: string) => void;
+  onCopy: (id: string) => void;
   onSaveGroup: (id: string | null, name: string) => void;
   onDeleteGroup: (id: string) => void;
   onSaveSubGroup: (id: string | null, groupId: string, name: string) => void;
   onDeleteSubGroup: (id: string) => void;
+  onMoveGroup?: (id: string, direction: 'up' | 'down') => void;    // 親並び替え関数
+  onMoveSubGroup?: (id: string, direction: 'up' | 'down') => void; // 子並び替え関数
+  onMoveProblem?: (id: string, direction: 'up' | 'down') => void;  // 孫並び替え関数
   cardPadding: number;
   titleSize: number;
   isAdmin?: boolean; 
@@ -32,10 +32,14 @@ export function JosekiExplorer({
   onSelect,
   onEdit,
   onDelete,
+  onCopy,
   onSaveGroup,
   onDeleteGroup,
   onSaveSubGroup,
   onDeleteSubGroup,
+  onMoveGroup,
+  onMoveSubGroup,
+  onMoveProblem,
   cardPadding,
   titleSize,
   isAdmin = false,
@@ -51,7 +55,7 @@ export function JosekiExplorer({
 
   const toggleGroup = (groupId: string) => {
     setExpandedGroupId(expandedGroupId === groupId ? null : groupId);
-    setExpandedSubGroupId(null); // 親フォルダが変わったら子の展開状態は一旦閉じる
+    setExpandedSubGroupId(null);
   };
 
   const toggleSubGroup = (subGroupId: string) => {
@@ -100,6 +104,26 @@ export function JosekiExplorer({
                 <div className="flex items-center gap-3">
                   {isAdmin && (
                     <div className="flex items-center gap-1.5 mr-2" onClick={(e) => e.stopPropagation()}>
+                      {/* 【親並び替え矢印】 */}
+                      {onMoveGroup && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onMoveGroup(group.id, 'up'); }}
+                            className="p-1 text-xs hover:bg-amber-100 rounded text-gray-400 hover:text-amber-800 transition-colors"
+                            title="戦法を上に移動"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onMoveGroup(group.id, 'down'); }}
+                            className="p-1 text-xs hover:bg-amber-100 rounded text-gray-400 hover:text-amber-800 transition-colors"
+                            title="戦法を下に移動"
+                          >
+                            ▼
+                          </button>
+                          <span className="text-gray-300">|</span>
+                        </>
+                      )}
                       <button
                         onClick={() => {
                           const name = prompt("戦法の名前を編集：", group.name);
@@ -152,13 +176,13 @@ export function JosekiExplorer({
                     </p>
                   ) : (
                     subFolders.map((sub) => {
-                      const isSubExpanded = expandedSubGroupId === sub.id; // 子戦型フォルダが展開されているか
+                      const isSubExpanded = expandedSubGroupId === sub.id;
                       const subProblems = groupProblems.filter((p) => p.subGroupId === sub.id);
 
                       return (
                         <div key={sub.id} className="bg-amber-50/5 border border-amber-900/5 p-4 rounded-xl space-y-3">
                           
-                          {/* 子グループ（戦型フォルダ）ヘッダー：クリックによる開閉に対応 */}
+                          {/* 子グループ（戦型フォルダ）ヘッダー */}
                           <div 
                             onClick={() => toggleSubGroup(sub.id)}
                             className="flex justify-between items-center border-b border-amber-900/5 pb-2 cursor-pointer select-none hover:bg-amber-100/30 p-2 rounded transition-colors"
@@ -171,6 +195,26 @@ export function JosekiExplorer({
                             <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                               {isAdmin && (
                                 <div className="flex items-center gap-1.5">
+                                  {/* 【子並び替え矢印】 */}
+                                  {onMoveSubGroup && (
+                                    <>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); onMoveSubGroup(sub.id, 'up'); }}
+                                        className="text-[11px] font-bold text-gray-400 hover:text-amber-800 hover:bg-amber-100/50 px-1.5 py-0.5 rounded transition-all"
+                                        title="上に移動"
+                                      >
+                                        ▲
+                                      </button>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); onMoveSubGroup(sub.id, 'down'); }}
+                                        className="text-[11px] font-bold text-gray-400 hover:text-amber-800 hover:bg-amber-100/50 px-1.5 py-0.5 rounded transition-all"
+                                        title="下に移動"
+                                      >
+                                        ▼
+                                      </button>
+                                      <span className="text-gray-300">|</span>
+                                    </>
+                                  )}
                                   <button
                                     onClick={() => {
                                       const name = prompt("戦型（フォルダ）の名前を編集：", sub.name);
@@ -199,7 +243,7 @@ export function JosekiExplorer({
                             </div>
                           </div>
 
-                          {/* フォルダ展開時のみ中のカードを表示する2段階アコーディオン設計 */}
+                          {/* 孫要素の展開表示 */}
                           {isSubExpanded && (
                             <div className="grid grid-cols-1 gap-3 pt-2 animate-fade-in">
                               {subProblems.length === 0 ? (
@@ -215,7 +259,6 @@ export function JosekiExplorer({
                                       key={problem.id}
                                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white border border-amber-900/5 hover:border-amber-900/20 rounded-xl transition-all shadow-sm group"
                                     >
-                                      {/* 小さすぎて機能しなかったミニ盤面を完全廃止し、スッキリした高級感のある見栄えに復元 */}
                                       <div className="flex-grow max-w-xl">
                                         <h5 className="text-lg font-black text-gray-800">
                                           {problem.title}
@@ -225,7 +268,7 @@ export function JosekiExplorer({
                                         </p>
                                       </div>
 
-                                      {/* 習得度 ＆ Lvバッジのサイズアップ */}
+                                      {/* 習得度 ＆ Lvバッジ */}
                                       <div className="flex items-center gap-4 flex-shrink-0 min-w-[150px]">
                                         <div className="flex-grow">
                                           <div className="flex justify-between text-[13px] font-bold text-gray-400 mb-1">
@@ -245,7 +288,6 @@ export function JosekiExplorer({
                                             Lv.{problem.srs.stage}
                                           </span>
                                           
-                                          {/* 非表示中のバッジ表示 */}
                                           {problem.srs.hiddenFromReview && (
                                             <span className="text-[10px] font-extrabold text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5">
                                               👁️‍🗨️ 復習非表示中
@@ -254,7 +296,7 @@ export function JosekiExplorer({
                                         </div>
                                       </div>
 
-                                      {/* アクションボタン（巨大化・お洒落化 ＆ 復習に戻すボタンのバインド） */}
+                                      {/* アクションボタン */}
                                       <div className="flex items-center gap-3">
                                         <div className="flex flex-col gap-1.5 items-end">
                                           <button
@@ -264,7 +306,6 @@ export function JosekiExplorer({
                                             学習を開始する ➔
                                           </button>
 
-                                          {/* 【改修要件・バグ修正】重複していた onClick 属性を1つの命令に綺麗に統合・整理しました */}
                                           {problem.srs.hiddenFromReview && onToggleReviewVisibility && (
                                             <button
                                               className="text-[11px] font-extrabold text-blue-600 hover:underline px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors shadow-sm animate-none"
@@ -278,12 +319,42 @@ export function JosekiExplorer({
 
                                         {isAdmin && (
                                           <div className="flex items-center gap-1.5 border-l border-gray-200 pl-3">
+                                            {/* 【孫（定跡）並び替え矢印】 */}
+                                            {onMoveProblem && (
+                                              <>
+                                                <button
+                                                  onClick={(e) => { e.stopPropagation(); onMoveProblem(problem.id, 'up'); }}
+                                                  className="text-xs hover:bg-amber-50 p-1.5 rounded text-gray-400 hover:text-amber-800"
+                                                  title="上に移動"
+                                                >
+                                                  ▲
+                                                </button>
+                                                <button
+                                                  onClick={(e) => { e.stopPropagation(); onMoveProblem(problem.id, 'down'); }}
+                                                  className="text-xs hover:bg-amber-50 p-1.5 rounded text-gray-400 hover:text-amber-800"
+                                                  title="下に移動"
+                                                >
+                                                  ▼
+                                                </button>
+                                                <span className="text-gray-200">|</span>
+                                              </>
+                                            )}
                                             <button
                                               onClick={() => onEdit(problem)}
                                               className="text-xs hover:bg-amber-50 p-1.5 rounded text-gray-400 hover:text-amber-800"
                                               title="定跡を編集"
                                             >
                                               ✏️
+                                            </button>
+                                            <button
+                                              onClick={() => {
+                                                onCopy(problem.id);
+                                                alert(`定跡「${problem.title}」をコピーしました！`);
+                                              }}
+                                              className="text-xs hover:bg-blue-50 p-1.5 rounded text-gray-400 hover:text-blue-600"
+                                              title="定跡をコピー"
+                                            >
+                                              📋
                                             </button>
                                             <button
                                               onClick={() => {

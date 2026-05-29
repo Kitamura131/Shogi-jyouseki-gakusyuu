@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { JosekiProblem, Move } from '../../types/shogi';
 
 function getDynamicFontSize(text: string, isBothDisplayed: boolean, baseSize: number): number {
@@ -42,7 +42,7 @@ interface LearnPanelProps {
   setIsHintRevealed: (revealed: boolean) => void;
   moves: Move[];
   getNextGoodIntervalText: () => string;
-  onOpenSubBoard: () => void; // 【新設要件】検討用継盤を開くための関数
+  onOpenSubBoard: () => void; // 検討用継盤を開くための関数
 }
 
 export function LearnPanel({
@@ -64,11 +64,14 @@ export function LearnPanel({
 }: LearnPanelProps) {
   const commentScrollRef = useRef<HTMLDivElement>(null);
 
+  // 【新設】答え（正解手）をインラインで表示するためのステート
+  const [isAnswerRevealed, setIsAnswerRevealed] = useState<boolean>(false);
+
   const learnCommentHeaderSize = 16;
   const learnCommentSize = 30;
   const learnHintSize = 24;
   
-  // 高さの固定を排除するため、最小の目安高さだけを設定（画面いっぱいに縦横自動伸縮します）
+  // 高さの固定を排除するため、最小の目安高さだけを設定
   const learnCommentHeight = 280; 
   const learnHintHeight = 130;
 
@@ -78,15 +81,16 @@ export function LearnPanel({
     }
   }, [game.currentStep, selectedJoseki]);
 
+  // 手番が進んだり、別の定跡が選択されたときは、答えの表示状態を自動的にリセット（目隠し）にする
+  useEffect(() => {
+    setIsAnswerRevealed(false);
+  }, [game.currentStep, selectedJoseki]);
+
   return (
-    // 【仕様調整】
-    // 1. 高さの固定制限を排除し、通常学習中・クリア時のパーツ量に応じて自然に伸び縮みする「min-h-[500px] h-auto」に復帰
-    // 2. パネル全体の横幅サイズを、本来の基準幅（420px）のちょうど2倍にあたる「w-full max-w-[840px]」に完全自動拡張（自動伸縮）
-    // 3. パネル内の「解説小窓」や「Anki小窓」のうっとうしい二重スクロールバーはすべて【完全撤廃】
     <div className="w-full h-auto min-h-[500px] flex-grow shrink bg-[#FAF7F0] border border-amber-900/10 p-5 rounded-2xl shadow-sm flex flex-col justify-between self-stretch font-sans">
       <div className="flex flex-col h-full justify-between gap-4">
         
-        {/* 最後の手の解説コメント：max-hや個別スクロールバーを完全撤廃し、文字数に応じて自然に伸びる設計 */}
+        {/* 最後の手の解説コメント */}
         {(game.userComment || game.opponentComment) && (
           <div 
             className="bg-[#FCF9F2] border-2 border-amber-500/20 rounded-2xl p-5 shadow-inner space-y-4 relative flex-shrink-0"
@@ -128,7 +132,7 @@ export function LearnPanel({
           </div>
         )}
 
-        {/* 解決案1：クリア直後のインライン Anki評価＆定跡総括エリア */}
+        {/* クリア直後のインライン Anki評価＆定跡総括エリア */}
         {clearStep === 'anki_select' && (
           <div className="p-5 bg-amber-50/60 border-2 border-amber-500/30 rounded-2xl shadow-inner space-y-4 flex-grow overflow-y-auto animate-fade-in flex-shrink-0">
             <div className="text-center pb-2 border-b border-amber-900/5">
@@ -138,7 +142,6 @@ export function LearnPanel({
               </h4>
             </div>
 
-            {/* 定跡全体に対する「総括・最終まとめコメント」を表示 */}
             <div className="space-y-1.5">
               <span className="text-[11px] font-bold text-amber-900/50 uppercase">総括メッセージ</span>
               <p className="font-serif font-extrabold text-slate-950 text-lg leading-relaxed bg-white/55 p-4 rounded-xl border border-amber-900/5 shadow-inner">
@@ -146,7 +149,6 @@ export function LearnPanel({
               </p>
             </div>
 
-            {/* 押しやすい巨大な2つの記憶度評価ボタン */}
             <div className="space-y-3 pt-4 border-t border-amber-900/5">
               <span className="text-sm sm:text-base font-extrabold text-amber-955 uppercase block text-center">
                 定跡を覚えた自信は？
@@ -171,30 +173,57 @@ export function LearnPanel({
           </div>
         )}
 
-        {/* 常設目隠し式ヒント枠 */}
+        {/* 【改修】常設目隠し式ヒント ＆ 答え統合枠 */}
         {clearStep === 'not_cleared' && (
           <div 
-            className="w-full border-2 border-amber-500/30 bg-[#FCF9F2] rounded-xl relative overflow-hidden shadow-sm flex items-center justify-center p-3 font-sans animate-none flex-shrink-0"
+            className="w-full border-2 border-amber-500/30 bg-[#FCF9F2] rounded-xl relative overflow-hidden shadow-sm flex flex-col items-center justify-center p-3 font-sans animate-none flex-shrink-0"
             style={{ height: `${learnHintHeight}px` }} 
           >
-            <span className="absolute top-1 left-2.5 text-[8px] font-bold text-amber-600/40 tracking-widest uppercase select-none">次の一手のヒント</span>
-            {isHintRevealed ? (
-              <div className="w-full text-center overflow-y-auto max-h-[85px] px-1 pt-2 animate-none">
-                <p 
-                  className="font-serif font-extrabold text-slate-950 leading-relaxed"
-                  style={{ fontSize: `${getDynamicFontSize(moves[game.currentStep]?.hint || "ヒントは未登録です。", false, learnHintSize)}px` }}
-                >
-                  {moves[game.currentStep]?.hint || "この手にはヒントが登録されていません。自分の直感で指してみましょう！"}
+            <span className="absolute top-1 left-2.5 text-[8px] font-bold text-amber-600/40 tracking-widest uppercase select-none">次の一手のヒント ＆ 答え</span>
+            
+            {isAnswerRevealed ? (
+              // 1. 答えを表示した場合
+              <div className="w-full text-center px-1 pt-2 animate-fade-in">
+                <span className="text-[10px] font-bold text-blue-600 tracking-wider uppercase block">正解手（答え）</span>
+                <p className="font-serif font-black text-3xl text-blue-950 mt-1">
+                  {moves[game.currentStep]?.notation || "未登録"}
                 </p>
               </div>
+            ) : isHintRevealed ? (
+              // 2. ヒントのみ表示した場合
+              <div className="w-full text-center flex flex-col justify-between h-full px-1 pt-2">
+                <div className="overflow-y-auto max-h-[55px] pt-1">
+                  <p 
+                    className="font-serif font-extrabold text-slate-950 leading-relaxed"
+                    style={{ fontSize: `${getDynamicFontSize(moves[game.currentStep]?.hint || "ヒントは未登録です。", false, learnHintSize - 4)}px` }}
+                  >
+                    {moves[game.currentStep]?.hint || "この手にはヒントが登録されていません。自分の直感で指してみましょう！"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsAnswerRevealed(true)}
+                  disabled={game.currentStep >= totalMoves || game.isThinking}
+                  className="text-[10px] font-extrabold text-blue-600 hover:underline hover:text-blue-800 transition-colors mt-1"
+                >
+                  ➔ 答え（正解手）を見る
+                </button>
+              </div>
             ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-amber-200/50 via-amber-100/45 to-amber-200/50 flex items-center justify-center">
+              // 3. どちらも未開封（目隠し状態）
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-200/50 via-amber-100/45 to-amber-200/50 flex items-center justify-center gap-3 px-4">
                 <button
                   onClick={() => setIsHintRevealed(true)}
                   disabled={game.currentStep >= totalMoves || game.isThinking}
-                  className="px-5 py-2 bg-[#111827] hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-400 text-white font-extrabold rounded-lg shadow-md text-xs tracking-wider transition-all select-none hover:scale-105 active:scale-95 duration-100"
+                  className="px-4 py-2 bg-[#111827] hover:bg-gray-800 disabled:bg-gray-300 disabled:text-gray-400 text-white font-extrabold rounded-lg shadow-md text-xs tracking-wider transition-all select-none hover:scale-105 active:scale-95 duration-100"
                 >
                   🔑 ヒントを見る
+                </button>
+                <button
+                  onClick={() => setIsAnswerRevealed(true)}
+                  disabled={game.currentStep >= totalMoves || game.isThinking}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-400 text-white font-extrabold rounded-lg shadow-md text-xs tracking-wider transition-all select-none hover:scale-105 active:scale-95 duration-100"
+                >
+                  👁️ 答えを見る
                 </button>
               </div>
             )}
@@ -216,7 +245,7 @@ export function LearnPanel({
           </button>
         )}
 
-        {/* 継盤ボタン - 常時表示（clearStepに関わらず） */}
+        {/* 継盤ボタン */}
         <button
           onClick={onOpenSubBoard}
           disabled={game.isThinking}
@@ -226,7 +255,6 @@ export function LearnPanel({
         </button>
 
         <div className="space-y-2">
-          {/* 定跡クリア後、記憶度を評価するまでの間（clearStep === 'anki_select'）は、「次の定跡に進む」「ホームに戻る」を完全にロック（disabled） */}
           <button
             onClick={handleNextJoseki}
             disabled={!hasNextProblem || game.isThinking || clearStep === 'anki_select'}

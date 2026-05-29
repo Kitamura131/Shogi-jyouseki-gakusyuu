@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { BoardState, Hand, SelectedFrom, Move, JosekiProblem, SRSStatus } from '../types';
+import { BoardState, Hand, SelectedFrom, Move, JosekiProblem, SRSStatus, PieceType } from '../types';
 import { generateNotation } from '../utils/shogiUtils';
 
 // 平手の初期配置を生成する内部関数
@@ -12,7 +12,7 @@ function createInitialBoard(): BoardState {
   const board: BoardState = Array(9).fill(null).map(() => emptyRow());
 
   // 後手配置
-  const goteFirstRow = ["香", "桂", "銀", "金", "玉", "金", "銀", "桂", "香"];
+  const goteFirstRow: PieceType[] = ["香", "桂", "銀", "金", "玉", "金", "銀", "桂", "香"];
   for (let i = 0; i < 9; i++) {
     board[0][i] = { name: goteFirstRow[i], color: 'gote' };
   }
@@ -24,7 +24,7 @@ function createInitialBoard(): BoardState {
   for (let i = 0; i < 9; i++) board[6][i] = { name: "歩", color: 'sente' };
   board[7][1] = { name: "角", color: 'sente' }; 
   board[7][7] = { name: "飛", color: 'sente' }; 
-  const senteFirstRow = ["香", "桂", "銀", "金", "玉", "金", "銀", "桂", "香"];
+  const senteFirstRow: PieceType[] = ["香", "桂", "銀", "金", "玉", "金", "銀", "桂", "香"];
   for (let i = 0; i < 9; i++) {
     board[8][i] = { name: senteFirstRow[i], color: 'sente' };
   }
@@ -33,7 +33,10 @@ function createInitialBoard(): BoardState {
 }
 
 // 駒台（持ち駒）の初期配置
-const createEmptyHand = (): Hand => ({ 歩: 0, 香: 0, 桂: 0, 銀: 0, 金: 0, 角: 0, 飛: 0 });
+const createEmptyHand = (): Hand => ({ 
+  歩: 0, 香: 0, 桂: 0, 銀: 0, 金: 0, 角: 0, 飛: 0, 玉: 0,
+  と: 0, 成香: 0, 成桂: 0, 成銀: 0, 龍: 0, 馬: 0
+});
 
 export function useShogiGame(
   selectedJoseki: JosekiProblem | null,
@@ -118,22 +121,24 @@ export function useShogiGame(
           // 【バグ改修】成駒を取った際も、100%確実に元の「成る前の駒」に翻訳して持ち駒台へ送る復元処理
           if (targetPiece) {
             const takerHand = movingPiece.color === 'sente' ? sHand : gHand;
-            let baseName = targetPiece.name;
+            let baseName: PieceType = targetPiece.name;
             if (baseName === "龍") baseName = "飛";
             else if (baseName === "馬") baseName = "角";
             else if (baseName === "と") baseName = "歩";
-            else {
-              baseName = baseName.replace("成", "");
-            }
+            else if (baseName === "成香") baseName = "香";
+            else if (baseName === "成桂") baseName = "桂";
+            else if (baseName === "成銀") baseName = "銀";
             takerHand[baseName] = (takerHand[baseName] || 0) + 1;
           }
 
-          let finalName = movingPiece.name;
+          let finalName: PieceType = movingPiece.name;
           if (move.promote) {
             if (movingPiece.name === "歩") finalName = "と";
             else if (movingPiece.name === "飛") finalName = "龍";
             else if (movingPiece.name === "角") finalName = "馬";
-            else if (!movingPiece.name.startsWith("成")) finalName = "成" + movingPiece.name;
+            else if (movingPiece.name === "香") finalName = "成香";
+            else if (movingPiece.name === "桂") finalName = "成桂";
+            else if (movingPiece.name === "銀") finalName = "成銀";
           }
 
           freshBoard[toRow][toCol] = { name: finalName, color: movingPiece.color };
@@ -142,6 +147,16 @@ export function useShogiGame(
       }
     }
     return { board: freshBoard, senteHand: sHand, goteHand: gHand };
+  };
+
+  // 継盤用：現在の学習ステップの1手前の局面（盤面・持ち駒）を取得するヘルパー関数
+  const getPreviousStepState = () => {
+    if (!selectedJoseki) {
+      return { board: createInitialBoard(), senteHand: createEmptyHand(), goteHand: createEmptyHand() };
+    }
+    // 現在のステップが0手目の場合は初期配置、それ以外は currentStep - 1 手目の状態を再現
+    const prevStep = Math.max(0, currentStep - 1);
+    return getGameStateAtStep(selectedJoseki, prevStep);
   };
 
   // 駒の成り・強制成りの判定ロジック
@@ -239,12 +254,14 @@ export function useShogiGame(
   ) => {
     const isSenteTurn = recordedMoves.length % 2 === 0;
     
-    let finalPieceName = pieceName;
+    let finalPieceName: PieceType = pieceName as PieceType;
     if (promote) {
       if (pieceName === "歩") finalPieceName = "と";
       else if (pieceName === "飛") finalPieceName = "龍";
       else if (pieceName === "角") finalPieceName = "馬";
-      else finalPieceName = "成" + pieceName;
+      else if (pieceName === "香") finalPieceName = "成香";
+      else if (pieceName === "桂") finalPieceName = "成桂";
+      else if (pieceName === "銀") finalPieceName = "成銀";
     }
 
     const newBoard = board.map(r => [...r]);
@@ -252,8 +269,9 @@ export function useShogiGame(
     if (isDrop) {
       newBoard[to[0]][to[1]] = { name: finalPieceName, color };
       const hand = color === 'sente' ? senteHand : goteHand;
-      setSenteHand(color === 'sente' ? { ...hand, [pieceName]: Math.max(0, (hand[pieceName] || 1) - 1) } : senteHand);
-      setGoteHand(color === 'gote' ? { ...hand, [pieceName]: Math.max(0, (hand[pieceName] || 1) - 1) } : goteHand);
+      const pieceKey = pieceName as PieceType;
+      setSenteHand(color === 'sente' ? { ...hand, [pieceKey]: Math.max(0, (hand[pieceKey] || 1) - 1) } : senteHand);
+      setGoteHand(color === 'gote' ? { ...hand, [pieceKey]: Math.max(0, (hand[pieceKey] || 1) - 1) } : goteHand);
     } else if (from) {
       const targetPiece = newBoard[to[0]][to[1]];
       
@@ -262,13 +280,13 @@ export function useShogiGame(
         const takerHand = color === 'sente' ? senteHand : goteHand;
         const setTakerHand = color === 'sente' ? setSenteHand : setGoteHand;
         
-        let baseName = targetPiece.name;
+        let baseName: PieceType = targetPiece.name;
         if (baseName === "龍") baseName = "飛";
         else if (baseName === "馬") baseName = "角";
         else if (baseName === "と") baseName = "歩";
-        else {
-          baseName = baseName.replace("成", "");
-        }
+        else if (baseName === "成香") baseName = "香";
+        else if (baseName === "成桂") baseName = "桂";
+        else if (baseName === "成銀") baseName = "銀";
         setTakerHand({ ...takerHand, [baseName]: (takerHand[baseName] || 0) + 1 });
       }
       newBoard[to[0]][to[1]] = { name: finalPieceName, color };
@@ -286,7 +304,7 @@ export function useShogiGame(
       notation,
       from,
       to,
-      piece: pieceName,
+      piece: pieceName as PieceType,
       promote,
       comment: '', 
       hint: ''    
@@ -470,7 +488,7 @@ export function useShogiGame(
     if (selectedFrom?.type === 'hand' && selectedFrom.name === name && selectedFrom.color === color) {
       setSelectedFrom(null);
     } else {
-      setSelectedFrom({ type: 'hand', name, color });
+      setSelectedFrom({ type: 'hand', name: name as PieceType, color });
     }
   };
 
@@ -524,7 +542,7 @@ export function useShogiGame(
     setLastAppliedMove(null);
   };
 
-  // 学習開始の初期化
+  // 学習開始 of 初期化
   const setupLearnMode = (problem: JosekiProblem) => {
     setIsThinking(false);
     setHasFailed(false);
@@ -626,6 +644,7 @@ export function useShogiGame(
     getGameStateAtStep,
     commitMove,
     resetToInitialBoard,
-    lastAppliedMove 
+    lastAppliedMove,
+    getPreviousStepState // 継盤用の状態取得関数をエクスポート
   };
 }

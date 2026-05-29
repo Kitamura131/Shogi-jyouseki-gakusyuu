@@ -178,7 +178,7 @@ function HomeContent() {
     setIsSettingOpen(true);
   };
 
-  // レコーダー設定確定（新設）
+  // レコーダー設定確定
   const handleConfirmRecording = () => {
     if (!newTitle.trim()) {
       alert("定跡のタイトルを入力してください。");
@@ -237,12 +237,11 @@ function HomeContent() {
     handleCancel();
   };
 
-  // 【バグ修正】定跡カードを選択した際、直接遷移せず、まずは「プレビューポップアップ」のみを安全に起動します！
   const handleSelectJoseki = (problem: JosekiProblem) => {
     setPreviewJoseki(problem);
   };
 
-  // 局面プレビューモーダルから、正式に定跡学習（画面ジャンプ）を開始する
+  // 局面プレビューモーダルから、正式に定跡学習を開始する
   const handleStartLearnAfterPreview = () => {
     if (!previewJoseki) return;
     setSelectedJoseki(previewJoseki);
@@ -304,7 +303,7 @@ function HomeContent() {
     localStorage.setItem(STORAGE_KEYS.BOARD_WIDTH, val.toString());
   };
 
-  // 復習リストからの削除ハンドラ（ゴミ箱/完全リセット：警告アラートダイアログ連動）
+  // 復習リストからの削除ハンドラ（ゴミ箱/完全リセット）
   const handleRemoveFromReviewQueue = (problemId: string) => {
     if (window.confirm("⚠️本当にこれまでの学習データを完全に削除（初期化）しますか？\nこれまでの習得ステージや復習スケジュール履歴がすべて消去され、最初からやり直しになります。")) {
       const updatedProblems = store.problems.map((prob) => {
@@ -354,7 +353,7 @@ function HomeContent() {
     }
   };
 
-  // 管理者用エクスポート（finalComment も漏れなく抽出できるように連動）
+  // 管理者用エクスポート
   const handleExportData = () => {
     if (!isAdmin) {
       alert("エクスポートは管理者モードでのみ可能です。");
@@ -435,6 +434,10 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
     if (!isAdmin) { alert("削除は管理者モードでのみ可能です。"); return; }
     store.deleteProblem(id);
   };
+  const wrappedOnCopy = (id: string) => {
+    if (!isAdmin) { alert("コピーは管理者モードでのみ可能です。"); return; }
+    store.copyProblem(id);
+  };
   const wrappedOnSaveGroup = (id: string | null, name: string) => {
     if (!isAdmin) { alert("管理者操作は管理者モードでのみ可能です。"); return; }
     store.saveGroup(id, name);
@@ -450,6 +453,20 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
   const wrappedOnDeleteSubGroup = (id: string) => {
     if (!isAdmin) { alert("管理者操作は管理者モードでのみ可能です。"); return; }
     store.deleteSubGroup(id);
+  };
+
+  // 【新設】順序変更イベントのラッピング
+  const wrappedOnMoveGroup = (id: string, direction: 'up' | 'down') => {
+    if (!isAdmin) { alert("順序変更は管理者モードでのみ可能です。"); return; }
+    store.moveGroupOrder(id, direction);
+  };
+  const wrappedOnMoveSubGroup = (id: string, direction: 'up' | 'down') => {
+    if (!isAdmin) { alert("順序変更は管理者モードでのみ可能です。"); return; }
+    store.moveSubGroupOrder(id, direction);
+  };
+  const wrappedOnMoveProblem = (id: string, direction: 'up' | 'down') => {
+    if (!isAdmin) { alert("順序変更は管理者モードでのみ可能です。"); return; }
+    store.moveProblemOrder(id, direction);
   };
 
   return (
@@ -503,10 +520,14 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
                       onSelect={handleSelectJoseki}
                       onEdit={wrappedOnEdit}
                       onDelete={wrappedOnDelete}
+                      onCopy={wrappedOnCopy}
                       onSaveGroup={wrappedOnSaveGroup}
                       onDeleteGroup={wrappedOnDeleteGroup}
                       onSaveSubGroup={wrappedOnSaveSubGroup}
                       onDeleteSubGroup={wrappedOnDeleteSubGroup}
+                      onMoveGroup={wrappedOnMoveGroup}       // 【バインド追加】
+                      onMoveSubGroup={wrappedOnMoveSubGroup} // 【バインド追加】
+                      onMoveProblem={wrappedOnMoveProblem}   // 【バインド追加】
                       cardPadding={homeCardPadding}
                       titleSize={homeTitleSize}
                       isAdmin={isAdmin}
@@ -542,10 +563,14 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
                     onSelect={handleSelectJoseki}
                     onEdit={wrappedOnEdit}
                     onDelete={wrappedOnDelete}
+                    onCopy={wrappedOnCopy}
                     onSaveGroup={wrappedOnSaveGroup}
                     onDeleteGroup={wrappedOnDeleteGroup}
                     onSaveSubGroup={wrappedOnSaveSubGroup}
                     onDeleteSubGroup={wrappedOnDeleteSubGroup}
+                    onMoveGroup={wrappedOnMoveGroup}       // 【バインド追加】
+                    onMoveSubGroup={wrappedOnMoveSubGroup} // 【バインド追加】
+                    onMoveProblem={wrappedOnMoveProblem}   // 【バインド追加】
                     cardPadding={homeCardPadding}
                     titleSize={homeTitleSize}
                     isAdmin={isAdmin}
@@ -556,8 +581,6 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
             </div>
           </div>
         ) : (
-          // 学習中の左パネル廃止
-          // 右側カラムを包むコンテナの高さ制限を完全に解除し、h-auto（画面全体のスクロール）に最適化
           <div className="max-w-[1680px] w-full mx-auto px-6 flex flex-col xl:flex-row xl:items-start gap-6 justify-center h-auto">
             {mode === 'record' && (
               <LeftPanel
@@ -576,9 +599,6 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
 
             {/* 中央カラム: 将棋盤 */}
             <div className="flex-shrink-0 flex flex-col items-center gap-4 justify-center w-full xl:w-auto bg-white/10 p-4 border border-amber-900/5 rounded-2xl shadow-sm relative h-auto">
-              {/* 【バグ改修】不自然に隠れていた「継盤ボタン」関係のコードを1から完全に書き直し、
-                  ここではボタンを配置せず、LearnPanel側の「1手戻す」のすぐ真下で確実に起動するように変更しました。 */}
-              
               <Board
                 board={game.board}
                 senteHand={game.senteHand}
@@ -634,7 +654,7 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
                   setIsHintRevealed={setIsHintRevealed}
                   moves={moves}
                   getNextGoodIntervalText={getNextGoodIntervalText}
-                  onOpenSubBoard={() => setIsSubBoardOpen(true)} // 【新設】
+                  onOpenSubBoard={() => setIsSubBoardOpen(true)}
                 />
                 <AdBanner position="panel" />
               </div>
@@ -660,12 +680,11 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
         )}
       </div>
 
-      {/* 【新設要件】定跡カード選択時に「ホーム画面に残ったまま」画面中央に浮かび上がる局面プレビューダイアログ */}
+      {/* 局面プレビューダイアログ */}
       {previewJoseki && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[3px] flex items-center justify-center z-[9999] p-4 font-sans animate-fade-in">
           <div className="bg-[#FAF7F0] border-4 border-amber-800 p-6 rounded-3xl max-w-lg w-full shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
             
-            {/* 上側: タイトルと詳しい解説（文字を大きく見やすく調整） */}
             <div className="text-center pb-2 border-b border-amber-900/5">
               <span className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">定跡開始プレビュー</span>
               <h3 className="text-xl sm:text-2xl font-serif font-black text-amber-955 mt-1 leading-tight">
@@ -676,7 +695,6 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
               </p>
             </div>
 
-            {/* 真ん中: 大きくてクッキリ見やすい「開始局面＋1手」の将棋盤 */}
             <div className="flex justify-center p-2 bg-white/25 rounded-2xl border border-amber-900/5 pointer-events-none scale-95 origin-center">
               <Board
                 board={getGameStateAtStep(previewJoseki, previewJoseki.startStep + 1)}
@@ -690,7 +708,6 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
               />
             </div>
 
-            {/* 下側: 操作ボタン */}
             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-amber-900/5">
               <button
                 onClick={handleStartLearnAfterPreview}
@@ -711,16 +728,19 @@ export const initialJosekiProblems: JosekiProblem[] = ${JSON.stringify(cleansedP
       )}
 
       {/* 検討用フローティング継盤（つぎばん）モーダル */}
-      {selectedJoseki && (
-        <SubBoardModal
-          isOpen={isSubBoardOpen}
-          onClose={() => setIsSubBoardOpen(false)}
-          initialBoard={game.board} 
-          initialSenteHand={game.senteHand} 
-          initialGoteHand={game.goteHand} 
-          isFlipped={selectedJoseki.playerColor === 'gote'}
-        />
-      )}
+      {selectedJoseki && isSubBoardOpen && (() => {
+        const subBoardInitialState = game.getPreviousStepState();
+        return (
+          <SubBoardModal
+            isOpen={isSubBoardOpen}
+            onClose={() => setIsSubBoardOpen(false)}
+            initialBoard={subBoardInitialState.board}
+            initialSenteHand={subBoardInitialState.senteHand}
+            initialGoteHand={subBoardInitialState.goteHand}
+            isFlipped={selectedJoseki.playerColor === 'gote'}
+          />
+        );
+      })()}
 
       {/* 各種設定ダイアログ・モーダル */}
       <RecordSettingModal

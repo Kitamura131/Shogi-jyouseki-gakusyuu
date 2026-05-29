@@ -1,5 +1,5 @@
 // src/utils/boardEngine.ts
-import { JosekiProblem, BoardState } from '../types/shogi';
+import { JosekiProblem, BoardState, PieceType } from '../types';
 
 /**
  * 初期盤面を生成（駒の初期配置）
@@ -9,7 +9,7 @@ export function createInitialBoard(): BoardState {
   const board: BoardState = Array(9).fill(null).map(() => emptyRow());
 
   // 後手（gote）の初期配置
-  const goteFirstRow = ['香', '桂', '銀', '金', '玉', '金', '銀', '桂', '香'];
+  const goteFirstRow: PieceType[] = ['香', '桂', '銀', '金', '玉', '金', '銀', '桂', '香'];
   for (let i = 0; i < 9; i++) {
     board[0][i] = { name: goteFirstRow[i], color: 'gote' };
   }
@@ -25,7 +25,7 @@ export function createInitialBoard(): BoardState {
   }
   board[7][1] = { name: '角', color: 'sente' };
   board[7][7] = { name: '飛', color: 'sente' };
-  const senteFirstRow = ['香', '桂', '銀', '金', '玉', '金', '銀', '桂', '香'];
+  const senteFirstRow: PieceType[] = ['香', '桂', '銀', '金', '玉', '金', '銀', '桂', '香'];
   for (let i = 0; i < 9; i++) {
     board[8][i] = { name: senteFirstRow[i], color: 'sente' };
   }
@@ -81,15 +81,23 @@ export function getGameStateAtStep(problem: JosekiProblem, step: number): BoardS
 /**
  * 駒を成った場合の名前を返す
  */
-function getPiecePromotion(pieceName: string): string {
-  const promotionMap: Record<string, string> = {
+function getPiecePromotion(pieceName: PieceType): PieceType {
+  const promotionMap: Record<PieceType, PieceType> = {
     歩: 'と',
-    飛: '龍',
-    角: '馬',
     香: '成香',
     桂: '成桂',
     銀: '成銀',
+    金: '金',
+    角: '馬',
+    飛: '龍',
+    玉: '玉',
+    と: 'と',
+    成香: '成香',
+    成桂: '成桂',
+    成銀: '成銀',
+    龍: '龍',
+    馬: '馬',
   };
 
-  return promotionMap[pieceName] || `成${pieceName}`;
+  return promotionMap[pieceName] || pieceName;
 }
