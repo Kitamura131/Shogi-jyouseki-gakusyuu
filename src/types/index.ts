@@ -5,22 +5,26 @@
  * すべてのコンポーネント、ロジックはこのデータ構造を基準に動作します。
  */
 
+// 駒の種類
+export type PieceType = '歩' | '香' | '桂' | '銀' | '金' | '角' | '飛' | '玉' | 
+                       'と' | '成香' | '成桂' | '成銀' | '龍' | '馬';
+
 // 1. 駒の最小単位
 export type Piece = {
-  name: string;             // 駒の漢字名（例: "歩", "と", "龍"）
-  color: 'sente' | 'gote';  // 先手（手前）または 後手（奥）
+  name: PieceType;              // 駒の漢字名（型安全）
+  color: 'sente' | 'gote';      // 先手（手前）または 後手（奥）
 };
 
 // 2. 将棋盤面（9x9の格子）の状態
 export type BoardState = (Piece | null)[][];
 
-// 3. 持ち駒（駒台）のストック枚数
-export type Hand = { [key: string]: number };
+// 3. 持ち駒（駒台）のストック枚数（型安全版）
+export type Hand = Record<PieceType, number>;
 
 // 4. 盤面で選択されているマスの状態（盤面か、持ち駒台か）
 export type SelectedFrom =
   | { type: 'board'; row: number; col: number }
-  | { type: 'hand'; name: string; color: 'sente' | 'gote' }
+  | { type: 'hand'; name: PieceType; color: 'sente' | 'gote' }
   | null;
 
 // 5. 1手ごとの着手（移動・駒打ち）データ
@@ -28,7 +32,7 @@ export type Move = {
   notation: string;              // 符号テキスト（例: "▲7六歩"）
   from: [number, number] | null; // 移動元の位置 [行, 列]。駒打ちの場合は null
   to: [number, number];          // 移動先の位置 [行, 列]
-  piece: string;                 // 動かす、または打つ駒の名前
+  piece: PieceType;              // 動かす、または打つ駒の名前（型安全）
   promote?: boolean;             // 成る場合は true
   comment?: string;              // この1手に対する解説コメント（巨大表示用）
   hint?: string;                 // この1手に対するスクラッチヒント用

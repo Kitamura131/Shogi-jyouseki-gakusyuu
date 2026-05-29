@@ -19,29 +19,76 @@ export function useJosekiStore() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        const storedGroups = localStorage.getItem(STORAGE_KEYS.GROUPS);
-        const storedSubGroups = localStorage.getItem(STORAGE_KEYS.SUB_GROUPS);
-        const storedProblems = localStorage.getItem(STORAGE_KEYS.PROBLEMS);
+        let loadedGroups: JosekiGroup[] = initialTacticsGroups;
+        let loadedSubGroups: SubGroup[] = initialTacticsSubGroups;
+        let loadedProblems: JosekiProblem[] = initialJosekiProblems;
+        let needsSave = false;
 
-        if (storedGroups && storedSubGroups && storedProblems) {
-          // すでにデータがある場合は、保存されているデータをロード
-          setJosekiGroups(JSON.parse(storedGroups));
-          setSubGroups(JSON.parse(storedSubGroups));
-          setProblems(JSON.parse(storedProblems));
-        } else {
-          // 初回起動時：静的な初期マスタデータを自動でLocalStorageにセットアップ
-          localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(initialTacticsGroups));
-          localStorage.setItem(STORAGE_KEYS.SUB_GROUPS, JSON.stringify(initialTacticsSubGroups));
-          localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(initialJosekiProblems));
-          
-          setJosekiGroups(initialTacticsGroups);
-          setSubGroups(initialTacticsSubGroups);
-          setProblems(initialJosekiProblems);
+        try {
+          const storedGroups = localStorage.getItem(STORAGE_KEYS.GROUPS);
+          if (storedGroups) {
+            loadedGroups = JSON.parse(storedGroups);
+            if (!Array.isArray(loadedGroups)) throw new Error('Invalid groups format');
+          } else {
+            needsSave = true;
+          }
+        } catch (parseErr) {
+          console.warn('Failed to parse stored groups, using defaults:', parseErr);
+          loadedGroups = initialTacticsGroups;
+          needsSave = true;
         }
+
+        try {
+          const storedSubGroups = localStorage.getItem(STORAGE_KEYS.SUB_GROUPS);
+          if (storedSubGroups) {
+            loadedSubGroups = JSON.parse(storedSubGroups);
+            if (!Array.isArray(loadedSubGroups)) throw new Error('Invalid subGroups format');
+          } else {
+            needsSave = true;
+          }
+        } catch (parseErr) {
+          console.warn('Failed to parse stored subGroups, using defaults:', parseErr);
+          loadedSubGroups = initialTacticsSubGroups;
+          needsSave = true;
+        }
+
+        try {
+          const storedProblems = localStorage.getItem(STORAGE_KEYS.PROBLEMS);
+          if (storedProblems) {
+            loadedProblems = JSON.parse(storedProblems);
+            if (!Array.isArray(loadedProblems)) throw new Error('Invalid problems format');
+          } else {
+            needsSave = true;
+          }
+        } catch (parseErr) {
+          console.warn('Failed to parse stored problems, using defaults:', parseErr);
+          loadedProblems = initialJosekiProblems;
+          needsSave = true;
+        }
+
+        // 初回起動またはデータが破損していた場合、デフォルトデータをセットアップ
+        if (needsSave) {
+          try {
+            localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(loadedGroups));
+            localStorage.setItem(STORAGE_KEYS.SUB_GROUPS, JSON.stringify(loadedSubGroups));
+            localStorage.setItem(STORAGE_KEYS.PROBLEMS, JSON.stringify(loadedProblems));
+          } catch (storageErr) {
+            console.error('Failed to save data to localStorage:', storageErr);
+            // ストレージ満杯でもアプリは動作する（メモリ上だけで動作）
+          }
+        }
+
+        setJosekiGroups(loadedGroups);
+        setSubGroups(loadedSubGroups);
+        setProblems(loadedProblems);
       } catch (err) {
-        console.error("LocalStorageの読み込みに失敗しました:", err);
+        console.error('Unexpected error during storage initialization:', err);
+        // フォールバック：デフォルトデータで起動
+        setJosekiGroups(initialTacticsGroups);
+        setSubGroups(initialTacticsSubGroups);
+        setProblems(initialJosekiProblems);
       } finally {
-        setLoading(false); // ロード完了
+        setLoading(false);
       }
     }
   }, []);

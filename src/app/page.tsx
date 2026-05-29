@@ -1,11 +1,14 @@
 // src/app/page.tsx
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Dashboard } from '../components/Home/Dashboard';
 import { JosekiExplorer } from '../components/Home/JosekiExplorer';
 import Board, { BoardState } from '../components/Board';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 // 分割コンポーネントをインポート
 import { Header } from '../components/Header';
@@ -23,56 +26,13 @@ import { JosekiProblem, Move } from '../types/shogi';
 import { STORAGE_KEYS, BOARD_SIZE } from '../utils/constants';
 import { useJosekiStore } from '../hooks/useJosekiStore';
 import { useShogiGame } from '../hooks/useShogiGame';
+import { getGameStateAtStep } from '../utils/boardEngine';
 
-// 定跡カード選択時の「開始局面プレビューポップアップ」用局面ジェネレーター
-function getGameStateAtStep(problem: JosekiProblem, step: number): BoardState {
-  const emptyRow = () => Array(9).fill(null);
-  const board: BoardState = Array(9).fill(null).map(() => emptyRow());
-
-  const goteFirstRow = ["香", "桂", "銀", "金", "玉", "金", "銀", "桂", "香"];
-  for (let i = 0; i < 9; i++) board[0][i] = { name: goteFirstRow[i], color: 'gote' };
-  board[1][1] = { name: "飛", color: 'gote' }; 
-  board[1][7] = { name: "角", color: 'gote' }; 
-  for (let i = 0; i < 9; i++) board[2][i] = { name: "歩", color: 'gote' };
-
-  for (let i = 0; i < 9; i++) board[6][i] = { name: "歩", color: 'sente' };
-  board[7][1] = { name: "角", color: 'sente' }; 
-  board[7][7] = { name: "飛", color: 'sente' }; 
-  const senteFirstRow = ["香", "桂", "銀", "金", "玉", "金", "銀", "桂", "香"];
-  for (let i = 0; i < 9; i++) board[8][i] = { name: senteFirstRow[i], color: 'sente' };
-
-  const targetStep = Math.min(step, problem.moves.length);
-
-  for (let i = 0; i < targetStep; i++) {
-    const move = problem.moves[i];
-    const playerColor = i % 2 === 0 ? 'sente' : 'gote';
-
-    if (move.from === null) {
-      board[move.to[0]][move.to[1]] = { name: move.piece, color: playerColor };
-    } else {
-      const [fromRow, fromCol] = move.from;
-      const [toRow, toCol] = move.to;
-      const movingPiece = board[fromRow][fromCol];
-
-      if (movingPiece) {
-        let finalName = movingPiece.name;
-        if (move.promote) {
-          if (movingPiece.name === "歩") finalName = "と";
-          else if (movingPiece.name === "飛") finalName = "龍";
-          else if (movingPiece.name === "角") finalName = "馬";
-          else if (!movingPiece.name.startsWith("成")) finalName = "成" + movingPiece.name;
-        }
-        board[toRow][toCol] = { name: finalName, color: movingPiece.color };
-        board[fromRow][fromCol] = null;
-      }
-    }
-  }
-  return board;
-}
 
 export default function Home() {
   return (
-    <Suspense fallback={
+    <ErrorBoundary>
+      <Suspense fallback={
       <div className="min-h-screen bg-[#F6F3EB] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-pulse text-amber-700 font-serif text-2xl">読み込み中...</div>
@@ -81,6 +41,7 @@ export default function Home() {
     }>
       <HomeContent />
     </Suspense>
+    </ErrorBoundary>
   );
 }
 
